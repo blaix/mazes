@@ -2,7 +2,20 @@ module Main exposing (main)
 
 import Browser
 import Dict exposing (update)
-import Element exposing (Element, centerX, centerY, column, el, height, layout, px, row, text, width)
+import Element
+    exposing
+        ( Element
+        , centerX
+        , centerY
+        , column
+        , el
+        , height
+        , layout
+        , px
+        , row
+        , text
+        , width
+        )
 import Element.Border as Border
 import Html exposing (Html)
 import List.Extra exposing (getAt, setAt)
