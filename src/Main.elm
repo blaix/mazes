@@ -1,22 +1,25 @@
 module Main exposing (main)
 
 import Browser
-import Dict exposing (update)
+import Dict exposing (size, update)
 import Element
     exposing
         ( Element
-        , centerX
-        , centerY
+        , alignTop
         , column
         , el
         , height
         , layout
+        , padding
         , px
+        , rgb255
         , row
         , text
         , width
         )
+import Element.Background as Background
 import Element.Border as Border
+import Element.Input as Input
 import Html exposing (Html)
 import List.Extra exposing (getAt, setAt)
 import Random
@@ -30,7 +33,7 @@ import Task
 main : Program () Model Msg
 main =
     Browser.element
-        { init = init
+        { init = init 15
         , update = update
         , view = view
         , subscriptions = subscriptions
@@ -100,14 +103,14 @@ type Direction
 
 {-| Create the maze and start carving in the top left cell.
 -}
-init : flags -> ( Model, Cmd Msg )
-init _ =
+init : Int -> flags -> ( Model, Cmd Msg )
+init size _ =
     let
         sizeX =
-            15
+            size
 
         sizeY =
-            10
+            round (toFloat size * (4 / 6))
     in
     ( { grid = List.repeat sizeY (List.repeat sizeX (Cell True True))
       , sizeX = sizeX
@@ -125,6 +128,7 @@ init _ =
 type Msg
     = CarvePath ( Int, Int ) -- Start (or continue) carving a path at the specified point
     | RemoveWall ( Int, Int ) Direction -- Remove a wall at the specified point
+    | ChangeSize Int
 
 
 carvePathCmd : ( Int, Int ) -> Cmd Msg
@@ -152,6 +156,9 @@ update msg model =
             ( model |> removeWall ( x, y ) direction
             , carvePathCmd ( x + 1, y )
             )
+
+        ChangeSize newSize ->
+            init newSize ()
 
 
 {-| Carve a path using the binary tree maze algorithm.
@@ -235,17 +242,20 @@ subscriptions _ =
 view : Model -> Html Msg
 view model =
     layout [] <|
-        column
-            [ centerX
-            , centerY
-            , Border.widthEach
-                { top = 0
-                , right = 0
-                , bottom = 1
-                , left = 1
-                }
+        row [ padding 20 ]
+            [ column [ padding 20, alignTop ]
+                [ row [] [ slider ChangeSize model ]
+                ]
+            , column
+                [ Border.widthEach
+                    { top = 0
+                    , right = 0
+                    , bottom = 1
+                    , left = 1
+                    }
+                ]
+                (List.map drawRow model.grid)
             ]
-            (List.map drawRow model.grid)
 
 
 drawRow : List Cell -> Element Msg
@@ -281,3 +291,35 @@ drawCell cell =
             }
         ]
         (text " ")
+
+
+slider : (Int -> Msg) -> Model -> Element Msg
+slider onChange model =
+    Input.slider
+        [ Element.height (Element.px 30)
+
+        -- Here is where we're creating/styling the "track"
+        , Element.behindContent
+            (Element.el
+                [ Element.width Element.fill
+                , Element.height (Element.px 2)
+                , Element.centerY
+                , Background.color grey
+                , Border.rounded 2
+                ]
+                Element.none
+            )
+        ]
+        { onChange = round >> onChange
+        , label = Input.labelAbove [] (text "Maze Size")
+        , min = 3
+        , max = 30
+        , step = Just 1
+        , value = toFloat model.sizeX
+        , thumb = Input.defaultThumb
+        }
+
+
+grey : Element.Color
+grey =
+    rgb255 100 100 100
