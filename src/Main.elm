@@ -10,6 +10,7 @@ import Element
         , height
         , layout
         , padding
+        , paddingXY
         , px
         , rgb255
         , row
@@ -18,6 +19,7 @@ import Element
         )
 import Element.Background as Background
 import Element.Border as Border
+import Element.Font as Font
 import Element.Input as Input
 import Html exposing (Html)
 import List.Extra exposing (getAt, setAt)
@@ -255,34 +257,38 @@ subscriptions _ =
 view : Model -> Html Msg
 view model =
     layout [] <|
-        row [ padding 20 ]
-            [ column [ padding 20, alignTop ]
-                [ row []
-                    [ slider
-                        ("Maze Size: " ++ String.fromInt model.sizeX)
-                        ChangeMazeSize
-                        model
-                        .sizeX
-                        ( 3, 80 )
+        column [ padding 20 ]
+            [ row [ paddingXY 0 5 ] [ text "Algorithm: Binary Tree (TODO: algorithm selection!)" ]
+            , row [ Font.size 18 ] [ text "Fast but makes sucky mazes (paths skew up-and-right)" ]
+            , row [ paddingXY 0 20 ]
+                [ column [ padding 20, alignTop ]
+                    [ row []
+                        [ slider
+                            ("Maze Size: " ++ String.fromInt model.sizeX)
+                            ChangeMazeSize
+                            model
+                            .sizeX
+                            ( 3, 80 )
+                        ]
+                    , row []
+                        [ slider
+                            ("Path Size: " ++ String.fromInt model.cellSize)
+                            ChangeCellSize
+                            model
+                            .cellSize
+                            ( 3, 100 )
+                        ]
                     ]
-                , row []
-                    [ slider
-                        ("Path Size: " ++ String.fromInt model.cellSize)
-                        ChangeCellSize
-                        model
-                        .cellSize
-                        ( 3, 100 )
+                , column
+                    [ Border.widthEach
+                        { top = 0
+                        , right = 0
+                        , bottom = 1
+                        , left = 1
+                        }
                     ]
+                    (List.map (drawRow model.cellSize) model.grid)
                 ]
-            , column
-                [ Border.widthEach
-                    { top = 0
-                    , right = 0
-                    , bottom = 1
-                    , left = 1
-                    }
-                ]
-                (List.map (drawRow model.cellSize) model.grid)
             ]
 
 
