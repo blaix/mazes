@@ -44,6 +44,14 @@ main =
 {-| A 2-dimensional grid of cells
 -}
 type alias Model =
+    { grid : Grid
+    , sizeX : Int
+    , sizeY : Int
+    , cellSize : Int
+    }
+
+
+type alias Grid =
     List (List Cell)
 
 
@@ -90,25 +98,22 @@ type Direction
     | East
 
 
-{-| Width of the maze
--}
-sizeX : Int
-sizeX =
-    15
-
-
-{-| Height of the maze
--}
-sizeY : Int
-sizeY =
-    10
-
-
 {-| Create the maze and start carving in the top left cell.
 -}
 init : flags -> ( Model, Cmd Msg )
 init _ =
-    ( List.repeat sizeY (List.repeat sizeX (Cell True True))
+    let
+        sizeX =
+            15
+
+        sizeY =
+            10
+    in
+    ( { grid = List.repeat sizeY (List.repeat sizeX (Cell True True))
+      , sizeX = sizeX
+      , sizeY = sizeY
+      , cellSize = 50
+      }
     , carvePathCmd ( 0, 0 )
     )
 
@@ -141,7 +146,7 @@ update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
         CarvePath ( x, y ) ->
-            ( model, carveWithBinaryTree ( x, y ) )
+            ( model, model |> carveWithBinaryTree ( x, y ) )
 
         RemoveWall ( x, y ) direction ->
             ( model |> removeWall ( x, y ) direction
@@ -152,17 +157,17 @@ update msg model =
 {-| Carve a path using the binary tree maze algorithm.
 <http://weblog.jamisbuck.org/2011/2/1/maze-generation-binary-tree-algorithm>
 -}
-carveWithBinaryTree : ( Int, Int ) -> Cmd Msg
-carveWithBinaryTree ( x, y ) =
-    if y >= sizeY then
+carveWithBinaryTree : ( Int, Int ) -> Model -> Cmd Msg
+carveWithBinaryTree ( x, y ) model =
+    if y >= model.sizeY then
         -- Carved every row. All done!
         Cmd.none
 
-    else if x >= sizeX then
+    else if x >= model.sizeX then
         -- Reached the end of this row, drop down to next one
         carvePathCmd ( 0, y + 1 )
 
-    else if northeastCorner ( x, y ) then
+    else if northeastCorner ( x, y ) model then
         -- Special case: Don't remove any wall in northeast corner.
         carvePathCmd ( 0, 1 )
 
@@ -170,7 +175,7 @@ carveWithBinaryTree ( x, y ) =
         -- Don't remove the northern maze boundary
         removeWallCmd ( x, y ) East
 
-    else if x == sizeX - 1 then
+    else if x == model.sizeX - 1 then
         -- Don't remove the eastern maze boundary
         removeWallCmd ( x, y ) North
 
@@ -179,16 +184,16 @@ carveWithBinaryTree ( x, y ) =
         Random.generate (RemoveWall ( x, y )) randomDirection
 
 
-northeastCorner : ( Int, Int ) -> Bool
-northeastCorner ( x, y ) =
-    (y == 0) && (x == sizeX - 1)
+northeastCorner : ( Int, Int ) -> Model -> Bool
+northeastCorner ( x, y ) model =
+    (y == 0) && (x == model.sizeX - 1)
 
 
 removeWall : ( Int, Int ) -> Direction -> Model -> Model
 removeWall ( x, y ) direction model =
     let
         maybeRow =
-            getAt y model
+            getAt y model.grid
 
         maybeCell =
             getAt x (Maybe.withDefault [] maybeRow)
@@ -207,7 +212,7 @@ removeWall ( x, y ) direction model =
                 newRow =
                     row |> setAt x newCell
             in
-            model |> setAt y newRow
+            { model | grid = setAt y newRow model.grid }
 
         -- If we got a point that's out of bounds there's nothing we can do
         _ ->
@@ -240,7 +245,7 @@ view model =
                 , left = 1
                 }
             ]
-            (List.map drawRow model)
+            (List.map drawRow model.grid)
 
 
 drawRow : List Cell -> Element Msg
