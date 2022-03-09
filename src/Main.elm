@@ -1,7 +1,6 @@
 module Main exposing (main)
 
 import Browser
-import Dict exposing (size, update)
 import Element
     exposing
         ( Element
@@ -30,10 +29,20 @@ import Task
 -- MAIN
 
 
+initialMazeSize : Int
+initialMazeSize =
+    40
+
+
+initialCellSize : Int
+initialCellSize =
+    20
+
+
 main : Program () Model Msg
 main =
     Browser.element
-        { init = init 15
+        { init = init initialMazeSize initialCellSize
         , update = update
         , view = view
         , subscriptions = subscriptions
@@ -103,19 +112,19 @@ type Direction
 
 {-| Create the maze and start carving in the top left cell.
 -}
-init : Int -> flags -> ( Model, Cmd Msg )
-init size _ =
+init : Int -> Int -> flags -> ( Model, Cmd Msg )
+init mazeSize cellSize _ =
     let
         sizeX =
-            size
+            mazeSize
 
         sizeY =
-            round (toFloat size * (4 / 6))
+            round (toFloat mazeSize * (4 / 6))
     in
     ( { grid = List.repeat sizeY (List.repeat sizeX (Cell True True))
       , sizeX = sizeX
       , sizeY = sizeY
-      , cellSize = 50
+      , cellSize = cellSize
       }
     , carvePathCmd ( 0, 0 )
     )
@@ -128,7 +137,8 @@ init size _ =
 type Msg
     = CarvePath ( Int, Int ) -- Start (or continue) carving a path at the specified point
     | RemoveWall ( Int, Int ) Direction -- Remove a wall at the specified point
-    | ChangeSize Int
+    | ChangeMazeSize Int
+    | ChangeCellSize Int
 
 
 carvePathCmd : ( Int, Int ) -> Cmd Msg
@@ -157,8 +167,11 @@ update msg model =
             , carvePathCmd ( x + 1, y )
             )
 
-        ChangeSize newSize ->
-            init newSize ()
+        ChangeMazeSize newSize ->
+            init newSize model.cellSize ()
+
+        ChangeCellSize newSize ->
+            init model.sizeX newSize ()
 
 
 {-| Carve a path using the binary tree maze algorithm.
@@ -244,7 +257,22 @@ view model =
     layout [] <|
         row [ padding 20 ]
             [ column [ padding 20, alignTop ]
-                [ row [] [ slider ChangeSize model ]
+                [ row []
+                    [ slider
+                        ("Maze Size: " ++ String.fromInt model.sizeX)
+                        ChangeMazeSize
+                        model
+                        .sizeX
+                        ( 3, 80 )
+                    ]
+                , row []
+                    [ slider
+                        ("Path Size: " ++ String.fromInt model.cellSize)
+                        ChangeCellSize
+                        model
+                        .cellSize
+                        ( 3, 100 )
+                    ]
                 ]
             , column
                 [ Border.widthEach
@@ -254,17 +282,17 @@ view model =
                     , left = 1
                     }
                 ]
-                (List.map drawRow model.grid)
+                (List.map (drawRow model.cellSize) model.grid)
             ]
 
 
-drawRow : List Cell -> Element Msg
-drawRow cells =
-    row [] (List.map drawCell cells)
+drawRow : Int -> List Cell -> Element Msg
+drawRow cellSize cells =
+    row [] (List.map (drawCell cellSize) cells)
 
 
-drawCell : Cell -> Element Msg
-drawCell cell =
+drawCell : Int -> Cell -> Element Msg
+drawCell size cell =
     let
         borderTop =
             if cell.north then
@@ -281,8 +309,8 @@ drawCell cell =
                 0
     in
     el
-        [ width (px 50)
-        , height (px 50)
+        [ width (px size)
+        , height (px size)
         , Border.widthEach
             { top = borderTop
             , right = borderRight
@@ -293,8 +321,8 @@ drawCell cell =
         (text " ")
 
 
-slider : (Int -> Msg) -> Model -> Element Msg
-slider onChange model =
+slider : String -> (Int -> Msg) -> Model -> (Model -> Int) -> ( Int, Int ) -> Element Msg
+slider label onChange model field ( min, max ) =
     Input.slider
         [ Element.height (Element.px 30)
 
@@ -311,11 +339,11 @@ slider onChange model =
             )
         ]
         { onChange = round >> onChange
-        , label = Input.labelAbove [] (text "Maze Size")
-        , min = 3
-        , max = 30
+        , label = Input.labelAbove [] (text label)
+        , min = toFloat min
+        , max = toFloat max
         , step = Just 1
-        , value = toFloat model.sizeX
+        , value = toFloat (field model)
         , thumb = Input.defaultThumb
         }
 
