@@ -150,7 +150,7 @@ init mazeSize cellSize _ =
       , cellSize = cellSize
       , currentPosition = initialPosition
       , currentRun = []
-      , algorithm = BinaryTree
+      , algorithm = Sidewinder
       }
     , Task.perform TookStep (Task.succeed (Just initialPosition))
     )
@@ -169,7 +169,8 @@ type Msg
 
 
 type Wall
-    = Wall ( Direction, Position )
+    = Wall Direction Position
+    | Random Direction (List Position)
     | NoWall
 
 
@@ -193,10 +194,15 @@ update msg model =
                 (RemovedWall (chooseWallToRemove model coin))
                 model
 
-        RemovedWall (Wall ( direction, position )) ->
+        RemovedWall (Wall direction position) ->
             update
                 (TookStep (chooseNextStep model))
                 (removeWall model direction position)
+
+        RemovedWall (Random direction positions) ->
+            ( model
+            , Random.generate RemovedWall (randomWall direction positions)
+            )
 
         RemovedWall NoWall ->
             -- Sometimes we don't want to remove a wall!
@@ -256,11 +262,11 @@ chooseWithBinaryTree model coin =
 
             else if y == 0 then
                 -- Special case: Don't remove the northern maze border
-                Wall ( East, model.currentPosition )
+                Wall East model.currentPosition
 
             else
                 -- Normal case: Remove northern wall on a Heads
-                Wall ( North, model.currentPosition )
+                Wall North model.currentPosition
 
         Tails ->
             if y == 0 && x >= model.sizeX - 1 then
@@ -269,20 +275,34 @@ chooseWithBinaryTree model coin =
 
             else if x >= model.sizeX - 1 then
                 -- Special case: Don't remove eastern maze border
-                Wall ( North, model.currentPosition )
+                Wall North model.currentPosition
 
             else
                 -- Normal case: Remove eastern wall on a Tails
-                Wall ( East, model.currentPosition )
+                Wall East model.currentPosition
 
 
 {-| Choose a wall to remove using the Sidewinder maze algorithm
 -}
 chooseWithSidewinder : Model -> Coin -> Wall
 chooseWithSidewinder model coin =
+    let
+        ( x, y ) =
+            model.currentPosition
+    in
     case coin of
         Heads ->
-            Debug.todo "Implement sidewinder logic"
+            if y == 0 && x >= model.sizeX - 1 then
+                -- Special case: Don't remove anything from northeast corner
+                NoWall
+
+            else if y == 0 then
+                -- Special case: Don't remove the northern maze border
+                Wall East model.currentPosition
+
+            else
+                -- Normal case: Remove northern wall from a randomly selected cell in the current run
+                Random North model.currentRun
 
         Tails ->
             -- Sidewinder == BinaryTree for tails flips
@@ -292,6 +312,17 @@ chooseWithSidewinder model coin =
 flipCoin : Random.Generator Coin
 flipCoin =
     Random.uniform Heads [ Tails ]
+
+
+randomWall : Direction -> List Position -> Random.Generator Wall
+randomWall direction positions =
+    case List.Extra.uncons positions of
+        Just ( head, tail ) ->
+            Random.uniform head tail
+                |> Random.map (Wall direction)
+
+        Nothing ->
+            Random.constant NoWall
 
 
 removeWall : Model -> Direction -> Position -> Model
