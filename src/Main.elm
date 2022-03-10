@@ -14,6 +14,7 @@ import Element
         , px
         , rgb255
         , row
+        , spacing
         , text
         , width
         )
@@ -35,7 +36,7 @@ import Task
 main : Program () Model Msg
 main =
     Browser.element
-        { init = init initialMazeSize initialCellSize
+        { init = init initialMazeSize initialCellSize initialAlgorithm
         , update = update
         , view = view
         , subscriptions = subscriptions
@@ -130,19 +131,26 @@ initialCellSize =
     20
 
 
+initialPosition : Position
+initialPosition =
+    ( 0, 0 )
+
+
+initialAlgorithm : Algorithm
+initialAlgorithm =
+    BinaryTree
+
+
 {-| Create the maze and start carving in the top left cell.
 -}
-init : Int -> Int -> flags -> ( Model, Cmd Msg )
-init mazeSize cellSize _ =
+init : Int -> Int -> Algorithm -> flags -> ( Model, Cmd Msg )
+init mazeSize cellSize algorithm _ =
     let
         sizeX =
             mazeSize
 
         sizeY =
             round (toFloat mazeSize * (4 / 6))
-
-        initialPosition =
-            ( 0, 0 )
     in
     ( { grid = List.repeat sizeY (List.repeat sizeX (Cell True True))
       , sizeX = sizeX
@@ -150,7 +158,7 @@ init mazeSize cellSize _ =
       , cellSize = cellSize
       , currentPosition = initialPosition
       , currentRun = []
-      , algorithm = Sidewinder
+      , algorithm = algorithm
       }
     , Task.perform TookStep (Task.succeed (Just initialPosition))
     )
@@ -166,6 +174,7 @@ type Msg
     | FlippedCoin Coin
     | ChangedMazeSize Int
     | ChangedCellSize Int
+    | ChangedAlgorithm Algorithm
 
 
 type Wall
@@ -211,10 +220,13 @@ update msg model =
                 model
 
         ChangedMazeSize newSize ->
-            init newSize model.cellSize ()
+            init newSize model.cellSize model.algorithm ()
 
         ChangedCellSize newSize ->
-            init model.sizeX newSize ()
+            init model.sizeX newSize model.algorithm ()
+
+        ChangedAlgorithm algorithm ->
+            init model.sizeX model.cellSize algorithm ()
 
 
 chooseNextStep : Model -> Maybe Position
@@ -247,6 +259,7 @@ chooseWallToRemove model coin =
 
 
 {-| Choose a wall to remove using the BinaryTree maze algorithm
+<http://weblog.jamisbuck.org/2011/2/1/maze-generation-binary-tree-algorithm>
 -}
 chooseWithBinaryTree : Model -> Coin -> Wall
 chooseWithBinaryTree model coin =
@@ -283,6 +296,7 @@ chooseWithBinaryTree model coin =
 
 
 {-| Choose a wall to remove using the Sidewinder maze algorithm
+<https://weblog.jamisbuck.org/2011/2/3/maze-generation-sidewinder-algorithm>
 -}
 chooseWithSidewinder : Model -> Coin -> Wall
 chooseWithSidewinder model coin =
@@ -379,8 +393,17 @@ view : Model -> Html Msg
 view model =
     layout [] <|
         column [ padding 20 ]
-            [ row [ paddingXY 0 5 ] [ text "Algorithm: Binary Tree (TODO: algorithm selection!)" ]
-            , row [ Font.size 18 ] [ text "Fast but makes sucky mazes (paths skew up-and-right)" ]
+            [ row [ paddingXY 0 5 ]
+                [ Input.radioRow [ paddingXY 10 0, spacing 20 ]
+                    { onChange = ChangedAlgorithm
+                    , selected = Just model.algorithm
+                    , label = Input.labelLeft [] (text "Algorithm: ")
+                    , options =
+                        [ Input.option BinaryTree (text "BinaryTree")
+                        , Input.option Sidewinder (text "Sidewinder")
+                        ]
+                    }
+                ]
             , row [ paddingXY 0 20 ]
                 [ column [ padding 20, alignTop ]
                     [ row []
