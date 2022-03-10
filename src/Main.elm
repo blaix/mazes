@@ -146,8 +146,14 @@ init mazeSize cellSize _ =
 type Msg
     = CarvePath -- Start (or continue) carving a path at the specified point
     | RemoveWall Direction -- Remove a wall at the specified point
+    | FlippedCoin Coin -- For making a random choice of what to do next
     | ChangeMazeSize Int
     | ChangeCellSize Int
+
+
+type Coin
+    = Heads
+    | Tails
 
 
 carvePathCmd : Cmd Msg
@@ -168,6 +174,9 @@ update msg model =
 
         RemoveWall direction ->
             removeWall model direction
+
+        FlippedCoin coin ->
+            handleCoinFlip model coin
 
         ChangeMazeSize newSize ->
             init newSize model.cellSize ()
@@ -200,7 +209,7 @@ carvePath model =
 
     else
         -- Otherwise remove a random north or east wall!
-        ( model, Random.generate RemoveWall randomDirection )
+        ( model, Random.generate FlippedCoin flipCoin )
 
 
 northeastCorner : Model -> Bool
@@ -212,9 +221,9 @@ northeastCorner model =
     (y == 0) && (x == model.sizeX - 1)
 
 
-randomDirection : Random.Generator Direction
-randomDirection =
-    Random.uniform North [ East ]
+flipCoin : Random.Generator Coin
+flipCoin =
+    Random.uniform Heads [ Tails ]
 
 
 removeWall : Model -> Direction -> ( Model, Cmd Msg )
@@ -253,6 +262,16 @@ removeWall model direction =
         -- If we got a point that's out of bounds there's nothing we can do
         _ ->
             ( model, Cmd.none )
+
+
+handleCoinFlip : Model -> Coin -> ( Model, Cmd Msg )
+handleCoinFlip model coin =
+    case coin of
+        Heads ->
+            ( model, removeWallCmd North )
+
+        Tails ->
+            ( model, removeWallCmd East )
 
 
 
