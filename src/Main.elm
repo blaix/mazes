@@ -69,6 +69,7 @@ type alias Position =
 
 type Algorithm
     = BinaryTree
+    | Sidewinder
 
 
 {-| Cells have a north and east wall.
@@ -161,10 +162,15 @@ init mazeSize cellSize _ =
 
 type Msg
     = TookStep (Maybe Position)
-    | RemovedWall (Maybe ( Direction, Position ))
+    | RemovedWall Wall
     | FlippedCoin Coin
     | ChangedMazeSize Int
     | ChangedCellSize Int
+
+
+type Wall
+    = Wall ( Direction, Position )
+    | NoWall
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -187,12 +193,12 @@ update msg model =
                 (RemovedWall (chooseWallToRemove model coin))
                 model
 
-        RemovedWall (Just ( direction, position )) ->
+        RemovedWall (Wall ( direction, position )) ->
             update
                 (TookStep (chooseNextStep model))
                 (removeWall model direction position)
 
-        RemovedWall Nothing ->
+        RemovedWall NoWall ->
             -- Sometimes we don't want to remove a wall!
             update
                 (TookStep (chooseNextStep model))
@@ -224,8 +230,20 @@ chooseNextStep model =
         Just ( x + 1, y )
 
 
-chooseWallToRemove : Model -> Coin -> Maybe ( Direction, Position )
+chooseWallToRemove : Model -> Coin -> Wall
 chooseWallToRemove model coin =
+    case model.algorithm of
+        BinaryTree ->
+            chooseWithBinaryTree model coin
+
+        Sidewinder ->
+            chooseWithSidewinder model coin
+
+
+{-| Choose a wall to remove using the BinaryTree maze algorithm
+-}
+chooseWithBinaryTree : Model -> Coin -> Wall
+chooseWithBinaryTree model coin =
     let
         ( x, y ) =
             model.currentPosition
@@ -234,28 +252,41 @@ chooseWallToRemove model coin =
         Heads ->
             if y == 0 && x >= model.sizeX - 1 then
                 -- Special case: Don't remove anything from northeast corner
-                Nothing
+                NoWall
 
             else if y == 0 then
                 -- Special case: Don't remove the northern maze border
-                Just ( East, model.currentPosition )
+                Wall ( East, model.currentPosition )
 
             else
                 -- Normal case: Remove northern wall on a Heads
-                Just ( North, model.currentPosition )
+                Wall ( North, model.currentPosition )
 
         Tails ->
             if y == 0 && x >= model.sizeX - 1 then
                 -- Special case: Don't remove anything from northeast corner
-                Nothing
+                NoWall
 
             else if x >= model.sizeX - 1 then
                 -- Special case: Don't remove eastern maze border
-                Just ( North, model.currentPosition )
+                Wall ( North, model.currentPosition )
 
             else
                 -- Normal case: Remove eastern wall on a Tails
-                Just ( East, model.currentPosition )
+                Wall ( East, model.currentPosition )
+
+
+{-| Choose a wall to remove using the Sidewinder maze algorithm
+-}
+chooseWithSidewinder : Model -> Coin -> Wall
+chooseWithSidewinder model coin =
+    case coin of
+        Heads ->
+            Debug.todo "Implement sidewinder logic"
+
+        Tails ->
+            -- Sidewinder == BinaryTree for tails flips
+            chooseWithBinaryTree model coin
 
 
 flipCoin : Random.Generator Coin
