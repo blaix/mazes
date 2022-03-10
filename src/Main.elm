@@ -54,7 +54,7 @@ type alias Model =
     , sizeY : Int
     , cellSize : Int
     , currentPosition : Position
-    , easternRun : List Position
+    , currentRun : List Position
     , algorithm : Algorithm
     }
 
@@ -114,6 +114,11 @@ type Direction
     | East
 
 
+type Coin
+    = Heads
+    | Tails
+
+
 initialMazeSize : Int
 initialMazeSize =
     40
@@ -134,16 +139,19 @@ init mazeSize cellSize _ =
 
         sizeY =
             round (toFloat mazeSize * (4 / 6))
+
+        initialPosition =
+            ( 0, 0 )
     in
     ( { grid = List.repeat sizeY (List.repeat sizeX (Cell True True))
       , sizeX = sizeX
       , sizeY = sizeY
       , cellSize = cellSize
-      , currentPosition = ( 0, 0 )
-      , easternRun = []
+      , currentPosition = initialPosition
+      , currentRun = []
       , algorithm = BinaryTree
       }
-    , carvePathCmd
+    , Task.perform TookStep (Task.succeed (Just initialPosition))
     )
 
 
@@ -152,81 +160,102 @@ init mazeSize cellSize _ =
 
 
 type Msg
-    = CarvePath -- Start (or continue) carving a path at the specified point
-    | RemoveWall Direction -- Remove a wall at the specified point
-    | FlippedCoin Coin -- For making a random choice of what to do next
-    | ChangeMazeSize Int
-    | ChangeCellSize Int
-
-
-type Coin
-    = Heads
-    | Tails
-
-
-carvePathCmd : Cmd Msg
-carvePathCmd =
-    Task.perform (\_ -> CarvePath) (Task.succeed ())
-
-
-removeWallCmd : Direction -> Cmd Msg
-removeWallCmd direction =
-    Task.perform RemoveWall (Task.succeed direction)
+    = TookStep (Maybe Position)
+    | RemovedWall (Maybe ( Direction, Position ))
+    | FlippedCoin Coin
+    | ChangedMazeSize Int
+    | ChangedCellSize Int
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
-        CarvePath ->
-            carvePath model
+        TookStep (Just position) ->
+            ( { model
+                | currentPosition = position
+                , currentRun = position :: model.currentRun
+              }
+            , Random.generate FlippedCoin flipCoin
+            )
 
-        RemoveWall direction ->
-            removeWall model direction
+        TookStep Nothing ->
+            -- All done!
+            ( model, Cmd.none )
 
         FlippedCoin coin ->
-            handleCoinFlip model coin
+            update
+                (RemovedWall (chooseWallToRemove model coin))
+                model
 
-        ChangeMazeSize newSize ->
+        RemovedWall (Just ( direction, position )) ->
+            update
+                (TookStep (chooseNextStep model))
+                (removeWall model direction position)
+
+        RemovedWall Nothing ->
+            -- Sometimes we don't want to remove a wall!
+            update
+                (TookStep (chooseNextStep model))
+                model
+
+        ChangedMazeSize newSize ->
             init newSize model.cellSize ()
 
-        ChangeCellSize newSize ->
+        ChangedCellSize newSize ->
             init model.sizeX newSize ()
 
 
-carvePath : Model -> ( Model, Cmd Msg )
-carvePath model =
+chooseNextStep : Model -> Maybe Position
+chooseNextStep model =
     let
         ( x, y ) =
             model.currentPosition
     in
-    if y >= model.sizeY then
-        -- Carved every row. All done!
-        ( model, Cmd.none )
+    if (x >= model.sizeX - 1) && (y >= model.sizeY - 1) then
+        -- Visited every cell. All done!
+        Nothing
 
-    else if (x >= model.sizeX) || northeastCorner model then
+    else if x >= model.sizeX - 1 then
         -- Reached the end of this row, drop down to next one
-        ( { model | currentPosition = ( 0, y + 1 ) }, carvePathCmd )
-
-    else if y == 0 then
-        -- Can only remove the eastern wall if we're on the top row
-        ( model, removeWallCmd East )
-
-    else if x == model.sizeX - 1 then
-        -- Can only remove the northern wall if we're on the east-most side
-        ( model, removeWallCmd North )
+        Just ( 0, y + 1 )
 
     else
-        -- Otherwise remove a random north or east wall!
-        ( model, Random.generate FlippedCoin flipCoin )
+        -- Otherwise take a step to the right
+        Just ( x + 1, y )
 
 
-northeastCorner : Model -> Bool
-northeastCorner model =
+chooseWallToRemove : Model -> Coin -> Maybe ( Direction, Position )
+chooseWallToRemove model coin =
     let
         ( x, y ) =
             model.currentPosition
     in
-    (y == 0) && (x == model.sizeX - 1)
+    case coin of
+        Heads ->
+            if y == 0 && x >= model.sizeX - 1 then
+                -- Special case: Don't remove anything from northeast corner
+                Nothing
+
+            else if y == 0 then
+                -- Special case: Don't remove the northern maze border
+                Just ( East, model.currentPosition )
+
+            else
+                -- Normal case: Remove northern wall on a Heads
+                Just ( North, model.currentPosition )
+
+        Tails ->
+            if y == 0 && x >= model.sizeX - 1 then
+                -- Special case: Don't remove anything from northeast corner
+                Nothing
+
+            else if x >= model.sizeX - 1 then
+                -- Special case: Don't remove eastern maze border
+                Just ( North, model.currentPosition )
+
+            else
+                -- Normal case: Remove eastern wall on a Tails
+                Just ( East, model.currentPosition )
 
 
 flipCoin : Random.Generator Coin
@@ -234,11 +263,11 @@ flipCoin =
     Random.uniform Heads [ Tails ]
 
 
-removeWall : Model -> Direction -> ( Model, Cmd Msg )
-removeWall model direction =
+removeWall : Model -> Direction -> Position -> Model
+removeWall model direction position =
     let
         ( x, y ) =
-            model.currentPosition
+            position
 
         maybeRow =
             getAt y model.grid
@@ -249,42 +278,26 @@ removeWall model direction =
     case ( maybeRow, maybeCell ) of
         ( Just row, Just cell ) ->
             let
-                ( newRun, newCell ) =
+                ( newCell, newRun ) =
                     case direction of
                         North ->
-                            ( [], { cell | north = False } )
+                            ( { cell | north = False }, [] )
 
                         East ->
-                            ( model.currentPosition :: model.easternRun
-                            , { cell | east = False }
-                            )
+                            ( { cell | east = False }, model.currentRun )
 
                 newRow =
                     row |> setAt x newCell
             in
-            ( { model
+            { model
                 | grid = setAt y newRow model.grid
-                , easternRun = newRun
                 , currentPosition = ( x + 1, y )
-              }
-            , carvePathCmd
-            )
+                , currentRun = newRun
+            }
 
         -- If we got a point that's out of bounds there's nothing we can do
         _ ->
-            ( model, Cmd.none )
-
-
-handleCoinFlip : Model -> Coin -> ( Model, Cmd Msg )
-handleCoinFlip model coin =
-    case coin of
-        Heads ->
-            case model.algorithm of
-                BinaryTree ->
-                    ( model, removeWallCmd North )
-
-        Tails ->
-            ( model, removeWallCmd East )
+            model
 
 
 
@@ -311,7 +324,7 @@ view model =
                     [ row []
                         [ slider
                             { label = "Maze Size: " ++ String.fromInt model.sizeX
-                            , onChange = ChangeMazeSize
+                            , onChange = ChangedMazeSize
                             , model = model
                             , field = .sizeX
                             , range = ( 3, 80 )
@@ -320,7 +333,7 @@ view model =
                     , row []
                         [ slider
                             { label = "Path Size: " ++ String.fromInt model.cellSize
-                            , onChange = ChangeCellSize
+                            , onChange = ChangedCellSize
                             , model = model
                             , field = .cellSize
                             , range = ( 3, 100 )
