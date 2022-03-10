@@ -22,6 +22,7 @@ import Element.Border as Border
 import Element.Font as Font
 import Element.Input as Input
 import Html exposing (Html)
+import List exposing (range)
 import List.Extra exposing (getAt, setAt)
 import Random
 import Task
@@ -29,16 +30,6 @@ import Task
 
 
 -- MAIN
-
-
-initialMazeSize : Int
-initialMazeSize =
-    40
-
-
-initialCellSize : Int
-initialCellSize =
-    20
 
 
 main : Program () Model Msg
@@ -117,6 +108,16 @@ type Direction
     | East
 
 
+initialMazeSize : Int
+initialMazeSize =
+    40
+
+
+initialCellSize : Int
+initialCellSize =
+    20
+
+
 {-| Create the maze and start carving in the top left cell.
 -}
 init : Int -> Int -> flags -> ( Model, Cmd Msg )
@@ -157,11 +158,6 @@ carvePathCmd =
 removeWallCmd : Direction -> Cmd Msg
 removeWallCmd direction =
     Task.perform RemoveWall (Task.succeed direction)
-
-
-randomDirection : Random.Generator Direction
-randomDirection =
-    Random.uniform North [ East ]
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -214,6 +210,11 @@ northeastCorner model =
             model.currentPosition
     in
     (y == 0) && (x == model.sizeX - 1)
+
+
+randomDirection : Random.Generator Direction
+randomDirection =
+    Random.uniform North [ East ]
 
 
 removeWall : Model -> Direction -> ( Model, Cmd Msg )
@@ -277,19 +278,21 @@ view model =
                 [ column [ padding 20, alignTop ]
                     [ row []
                         [ slider
-                            ("Maze Size: " ++ String.fromInt model.sizeX)
-                            ChangeMazeSize
-                            model
-                            .sizeX
-                            ( 3, 80 )
+                            { label = "Maze Size: " ++ String.fromInt model.sizeX
+                            , onChange = ChangeMazeSize
+                            , model = model
+                            , field = .sizeX
+                            , range = ( 3, 80 )
+                            }
                         ]
                     , row []
                         [ slider
-                            ("Path Size: " ++ String.fromInt model.cellSize)
-                            ChangeCellSize
-                            model
-                            .cellSize
-                            ( 3, 100 )
+                            { label = "Path Size: " ++ String.fromInt model.cellSize
+                            , onChange = ChangeCellSize
+                            , model = model
+                            , field = .cellSize
+                            , range = ( 3, 100 )
+                            }
                         ]
                     ]
                 , column
@@ -340,8 +343,19 @@ drawCell size cell =
         (text " ")
 
 
-slider : String -> (Int -> Msg) -> Model -> (Model -> Int) -> ( Int, Int ) -> Element Msg
-slider label onChange model field ( min, max ) =
+slider :
+    { label : String
+    , onChange : Int -> Msg
+    , model : Model
+    , field : Model -> Int
+    , range : ( Int, Int )
+    }
+    -> Element Msg
+slider { label, onChange, model, field, range } =
+    let
+        ( min, max ) =
+            range
+    in
     Input.slider
         [ Element.height (Element.px 30)
 
