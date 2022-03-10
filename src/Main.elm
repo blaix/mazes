@@ -20,7 +20,6 @@ import Element
         )
 import Element.Background as Background
 import Element.Border as Border
-import Element.Font as Font
 import Element.Input as Input
 import Html exposing (Html)
 import List exposing (range)
@@ -316,7 +315,9 @@ chooseWithSidewinder model coin =
 
             else
                 -- Normal case: Remove northern wall from a randomly selected cell in the current run
-                Random North model.currentRun
+                Random North
+                    -- Exclude cells along the northern maze boundary
+                    (List.filter (\( _, cy ) -> cy > 0) model.currentRun)
 
         Tails ->
             -- Sidewinder == BinaryTree for tails flips
