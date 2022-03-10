@@ -55,6 +55,7 @@ type alias Model =
     , cellSize : Int
     , currentPosition : Position
     , easternRun : List Position
+    , algorithm : Algorithm
     }
 
 
@@ -64,6 +65,10 @@ type alias Grid =
 
 type alias Position =
     ( Int, Int )
+
+
+type Algorithm
+    = BinaryTree
 
 
 {-| Cells have a north and east wall.
@@ -136,6 +141,7 @@ init mazeSize cellSize _ =
       , cellSize = cellSize
       , currentPosition = ( 0, 0 )
       , easternRun = []
+      , algorithm = BinaryTree
       }
     , carvePathCmd
     )
@@ -273,7 +279,9 @@ handleCoinFlip : Model -> Coin -> ( Model, Cmd Msg )
 handleCoinFlip model coin =
     case coin of
         Heads ->
-            ( model, removeWallCmd North )
+            case model.algorithm of
+                BinaryTree ->
+                    ( model, removeWallCmd North )
 
         Tails ->
             ( model, removeWallCmd East )
