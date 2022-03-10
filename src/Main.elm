@@ -62,11 +62,16 @@ type alias Model =
     , sizeX : Int
     , sizeY : Int
     , cellSize : Int
+    , currentPosition : Position
     }
 
 
 type alias Grid =
     List (List Cell)
+
+
+type alias Position =
+    ( Int, Int )
 
 
 {-| Cells have a north and east wall.
@@ -127,8 +132,9 @@ init mazeSize cellSize _ =
       , sizeX = sizeX
       , sizeY = sizeY
       , cellSize = cellSize
+      , currentPosition = ( 0, 0 )
       }
-    , carvePathCmd ( 0, 0 )
+    , carvePathCmd
     )
 
 
@@ -137,20 +143,20 @@ init mazeSize cellSize _ =
 
 
 type Msg
-    = CarvePath ( Int, Int ) -- Start (or continue) carving a path at the specified point
-    | RemoveWall ( Int, Int ) Direction -- Remove a wall at the specified point
+    = CarvePath -- Start (or continue) carving a path at the specified point
+    | RemoveWall Direction -- Remove a wall at the specified point
     | ChangeMazeSize Int
     | ChangeCellSize Int
 
 
-carvePathCmd : ( Int, Int ) -> Cmd Msg
-carvePathCmd ( x, y ) =
-    Task.perform CarvePath (Task.succeed ( x, y ))
+carvePathCmd : Cmd Msg
+carvePathCmd =
+    Task.perform (\_ -> CarvePath) (Task.succeed ())
 
 
-removeWallCmd : ( Int, Int ) -> Direction -> Cmd Msg
-removeWallCmd ( x, y ) direction =
-    Task.perform (RemoveWall ( x, y )) (Task.succeed direction)
+removeWallCmd : Direction -> Cmd Msg
+removeWallCmd direction =
+    Task.perform RemoveWall (Task.succeed direction)
 
 
 randomDirection : Random.Generator Direction
@@ -161,13 +167,11 @@ randomDirection =
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
-        CarvePath ( x, y ) ->
-            ( model, model |> carveWithBinaryTree ( x, y ) )
+        CarvePath ->
+            carvePath model
 
-        RemoveWall ( x, y ) direction ->
-            ( model |> removeWall ( x, y ) direction
-            , carvePathCmd ( x + 1, y )
-            )
+        RemoveWall direction ->
+            removeWall model direction
 
         ChangeMazeSize newSize ->
             init newSize model.cellSize ()
@@ -176,44 +180,48 @@ update msg model =
             init model.sizeX newSize ()
 
 
-{-| Carve a path using the binary tree maze algorithm.
-<http://weblog.jamisbuck.org/2011/2/1/maze-generation-binary-tree-algorithm>
--}
-carveWithBinaryTree : ( Int, Int ) -> Model -> Cmd Msg
-carveWithBinaryTree ( x, y ) model =
+carvePath : Model -> ( Model, Cmd Msg )
+carvePath model =
+    let
+        ( x, y ) =
+            model.currentPosition
+    in
     if y >= model.sizeY then
         -- Carved every row. All done!
-        Cmd.none
+        ( model, Cmd.none )
 
-    else if x >= model.sizeX then
+    else if (x >= model.sizeX) || northeastCorner model then
         -- Reached the end of this row, drop down to next one
-        carvePathCmd ( 0, y + 1 )
-
-    else if northeastCorner ( x, y ) model then
-        -- Special case: Don't remove any wall in northeast corner.
-        carvePathCmd ( 0, 1 )
+        ( { model | currentPosition = ( 0, y + 1 ) }, carvePathCmd )
 
     else if y == 0 then
-        -- Don't remove the northern maze boundary
-        removeWallCmd ( x, y ) East
+        -- Can only remove the eastern wall if we're on the top row
+        ( model, removeWallCmd East )
 
     else if x == model.sizeX - 1 then
-        -- Don't remove the eastern maze boundary
-        removeWallCmd ( x, y ) North
+        -- Can only remove the northern wall if we're on the east-most side
+        ( model, removeWallCmd North )
 
     else
         -- Otherwise remove a random north or east wall!
-        Random.generate (RemoveWall ( x, y )) randomDirection
+        ( model, Random.generate RemoveWall randomDirection )
 
 
-northeastCorner : ( Int, Int ) -> Model -> Bool
-northeastCorner ( x, y ) model =
+northeastCorner : Model -> Bool
+northeastCorner model =
+    let
+        ( x, y ) =
+            model.currentPosition
+    in
     (y == 0) && (x == model.sizeX - 1)
 
 
-removeWall : ( Int, Int ) -> Direction -> Model -> Model
-removeWall ( x, y ) direction model =
+removeWall : Model -> Direction -> ( Model, Cmd Msg )
+removeWall model direction =
     let
+        ( x, y ) =
+            model.currentPosition
+
         maybeRow =
             getAt y model.grid
 
@@ -234,11 +242,16 @@ removeWall ( x, y ) direction model =
                 newRow =
                     row |> setAt x newCell
             in
-            { model | grid = setAt y newRow model.grid }
+            ( { model
+                | grid = setAt y newRow model.grid
+                , currentPosition = ( x + 1, y )
+              }
+            , carvePathCmd
+            )
 
         -- If we got a point that's out of bounds there's nothing we can do
         _ ->
-            model
+            ( model, Cmd.none )
 
 
 
