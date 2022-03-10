@@ -54,6 +54,7 @@ type alias Model =
     , sizeY : Int
     , cellSize : Int
     , currentPosition : Position
+    , easternRun : List Position
     }
 
 
@@ -134,6 +135,7 @@ init mazeSize cellSize _ =
       , sizeY = sizeY
       , cellSize = cellSize
       , currentPosition = ( 0, 0 )
+      , easternRun = []
       }
     , carvePathCmd
     )
@@ -241,19 +243,22 @@ removeWall model direction =
     case ( maybeRow, maybeCell ) of
         ( Just row, Just cell ) ->
             let
-                newCell =
+                ( newRun, newCell ) =
                     case direction of
                         North ->
-                            { cell | north = False }
+                            ( [], { cell | north = False } )
 
                         East ->
-                            { cell | east = False }
+                            ( model.currentPosition :: model.easternRun
+                            , { cell | east = False }
+                            )
 
                 newRow =
                     row |> setAt x newCell
             in
             ( { model
                 | grid = setAt y newRow model.grid
+                , easternRun = newRun
                 , currentPosition = ( x + 1, y )
               }
             , carvePathCmd
