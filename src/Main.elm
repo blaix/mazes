@@ -107,6 +107,7 @@ The data structure consists of two bools showing if the north and east walls exi
 type alias Cell =
     { north : Bool
     , east : Bool
+    , contents : String
     }
 
 
@@ -150,8 +151,29 @@ init mazeSize cellSize algorithm _ =
 
         sizeY =
             round (toFloat mazeSize * (4 / 6))
+
+        start =
+            ( 0, sizeY - 1 )
+
+        finish =
+            ( sizeX - 1, 0 )
+
+        walledCell =
+            Cell True True
+
+        initCell position =
+            if position == start then
+                walledCell "★"
+
+            else if position == finish then
+                walledCell "✓"
+
+            else
+                walledCell " "
     in
-    ( { grid = List.repeat sizeY (List.repeat sizeX (Cell True True))
+    ( { grid =
+            List.Extra.initialize sizeY
+                (\y -> List.Extra.initialize sizeX (\x -> initCell ( x, y )))
       , sizeX = sizeX
       , sizeY = sizeY
       , cellSize = cellSize
@@ -471,7 +493,7 @@ drawCell size cell =
             , left = 0
             }
         ]
-        (text " ")
+        (text cell.contents)
 
 
 slider :
