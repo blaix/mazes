@@ -5,6 +5,7 @@ import Element
     exposing
         ( Element
         , alignTop
+        , centerY
         , column
         , el
         , height
@@ -27,6 +28,7 @@ import List exposing (range)
 import List.Extra exposing (getAt, setAt)
 import Random
 import Task
+import Time
 
 
 
@@ -36,11 +38,40 @@ import Task
 main : Program () Model Msg
 main =
     Browser.element
-        { init = init initialMazeSize initialCellSize initialAlgorithm
+        { init = init defaults
         , update = update
         , view = view
         , subscriptions = subscriptions
         }
+
+
+type alias Config =
+    { size : Int
+    , cellSize : Int
+    , algorithm : Algorithm
+    , carveDelay : Int
+    }
+
+
+defaults : Config
+defaults =
+    { size = 40
+    , cellSize = 20
+    , algorithm = Sidewinder
+    , carveDelay = 0
+    }
+
+
+{-| Get a config based on current model.
+Useful when resetting the board.
+-}
+config : Model -> Config
+config model =
+    { size = model.sizeX
+    , cellSize = model.cellSize
+    , algorithm = model.algorithm
+    , carveDelay = model.carveDelay
+    }
 
 
 
@@ -57,6 +88,8 @@ type alias Model =
     , currentPosition : Position
     , currentRun : List Position
     , algorithm : Algorithm
+    , carved : Bool
+    , carveDelay : Int
     }
 
 
@@ -122,24 +155,9 @@ type Coin
     | Tails
 
 
-initialMazeSize : Int
-initialMazeSize =
-    40
-
-
-initialCellSize : Int
-initialCellSize =
-    20
-
-
 initialPosition : Position
 initialPosition =
     ( 0, 0 )
-
-
-initialAlgorithm : Algorithm
-initialAlgorithm =
-    Sidewinder
 
 
 wallWidth : Int
@@ -149,14 +167,14 @@ wallWidth =
 
 {-| Create the maze and start carving in the top left cell.
 -}
-init : Int -> Int -> Algorithm -> flags -> ( Model, Cmd Msg )
-init mazeSize cellSize algorithm _ =
+init : Config -> flags -> ( Model, Cmd Msg )
+init { size, cellSize, algorithm, carveDelay } _ =
     let
         sizeX =
-            mazeSize
+            size
 
         sizeY =
-            round (toFloat mazeSize * (4 / 6))
+            round (toFloat size * (4 / 6))
 
         start =
             ( 0, sizeY - 1 )
@@ -186,6 +204,8 @@ init mazeSize cellSize algorithm _ =
       , currentPosition = initialPosition
       , currentRun = []
       , algorithm = algorithm
+      , carved = False
+      , carveDelay = carveDelay
       }
     , Task.perform TookStep (Task.succeed (Just initialPosition))
     )
@@ -202,6 +222,8 @@ type Msg
     | ChangedMazeSize Int
     | ChangedCellSize Int
     | ChangedAlgorithm Algorithm
+    | ChangedCarveDelay Int
+    | Waiting
 
 
 type Wall
@@ -223,7 +245,7 @@ update msg model =
 
         TookStep Nothing ->
             -- All done!
-            ( model, Cmd.none )
+            ( { model | carved = True }, Cmd.none )
 
         FlippedCoin coin ->
             update
@@ -232,7 +254,7 @@ update msg model =
 
         RemovedWall (Wall direction position) ->
             update
-                (TookStep (chooseNextStep model))
+                (takeStepOrWait model)
                 (removeWall model direction position)
 
         RemovedWall (Random direction positions) ->
@@ -243,17 +265,50 @@ update msg model =
         RemovedWall NoWall ->
             -- Sometimes we don't want to remove a wall!
             update
-                (TookStep (chooseNextStep model))
+                (takeStepOrWait model)
                 model
 
         ChangedMazeSize newSize ->
-            init newSize model.cellSize model.algorithm ()
+            let
+                cfg =
+                    config model
+            in
+            init { cfg | size = newSize } ()
 
         ChangedCellSize newSize ->
-            init model.sizeX newSize model.algorithm ()
+            let
+                cfg =
+                    config model
+            in
+            init { cfg | cellSize = newSize } ()
 
         ChangedAlgorithm algorithm ->
-            init model.sizeX model.cellSize algorithm ()
+            let
+                cfg =
+                    config model
+            in
+            init { cfg | algorithm = algorithm } ()
+
+        ChangedCarveDelay delay ->
+            let
+                cfg =
+                    config model
+            in
+            init { cfg | carveDelay = delay } ()
+
+        Waiting ->
+            ( model, Cmd.none )
+
+
+takeStepOrWait : Model -> Msg
+takeStepOrWait model =
+    if model.carveDelay == 0 then
+        TookStep (chooseNextStep model)
+
+    else
+        -- If we're not instantly carving,
+        -- wait for timer to trigger next step.
+        Waiting
 
 
 chooseNextStep : Model -> Maybe Position
@@ -409,8 +464,14 @@ removeWall model direction position =
 
 
 subscriptions : Model -> Sub Msg
-subscriptions _ =
-    Sub.none
+subscriptions model =
+    if model.carved || model.carveDelay == 0 then
+        Sub.none
+
+    else
+        Time.every
+            (toFloat model.carveDelay)
+            (always (TookStep (chooseNextStep model)))
 
 
 
@@ -433,7 +494,7 @@ view model =
                     }
                 ]
             , row [ paddingXY 0 20 ]
-                [ column [ padding 20, alignTop ]
+                [ column [ padding 20, width (px 200), alignTop ]
                     [ row []
                         [ slider
                             { label = "Maze Size: " ++ String.fromInt model.sizeX
@@ -449,7 +510,16 @@ view model =
                             , onChange = ChangedCellSize
                             , model = model
                             , field = .cellSize
-                            , range = ( 3, 100 )
+                            , range = ( 4, 100 )
+                            }
+                        ]
+                    , row []
+                        [ slider
+                            { label = "Delay (ms): " ++ String.fromInt model.carveDelay
+                            , onChange = ChangedCarveDelay
+                            , model = model
+                            , field = .carveDelay
+                            , range = ( 0, 200 )
                             }
                         ]
                     ]
@@ -524,9 +594,9 @@ slider { label, onChange, model, field, range } =
         -- Here is where we're creating/styling the "track"
         , Element.behindContent
             (Element.el
-                [ Element.width Element.fill
-                , Element.height (Element.px 3)
-                , Element.centerY
+                [ width (px 120)
+                , height (px 3)
+                , centerY
                 , Background.color grey
                 , Border.rounded 2
                 ]
