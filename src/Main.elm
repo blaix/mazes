@@ -396,7 +396,6 @@ removeWall model direction position =
             in
             { model
                 | grid = setAt y newRow model.grid
-                , currentPosition = ( x + 1, y )
                 , currentRun = newRun
             }
 
