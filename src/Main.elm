@@ -139,7 +139,7 @@ initialPosition =
 
 initialAlgorithm : Algorithm
 initialAlgorithm =
-    BinaryTree
+    Sidewinder
 
 
 wallWidth : Int
