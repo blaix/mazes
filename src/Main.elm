@@ -20,6 +20,7 @@ import Element
         )
 import Element.Background as Background
 import Element.Border as Border
+import Element.Font as Font
 import Element.Input as Input
 import Html exposing (Html)
 import List exposing (range)
@@ -139,6 +140,11 @@ initialPosition =
 initialAlgorithm : Algorithm
 initialAlgorithm =
     BinaryTree
+
+
+wallWidth : Int
+wallWidth =
+    2
 
 
 {-| Create the maze and start carving in the top left cell.
@@ -452,8 +458,8 @@ view model =
                     [ Border.widthEach
                         { top = 0
                         , right = 0
-                        , bottom = 1
-                        , left = 1
+                        , bottom = wallWidth
+                        , left = wallWidth
                         }
                     ]
                     (List.map (drawRow model.cellSize) model.grid)
@@ -471,14 +477,14 @@ drawCell size cell =
     let
         borderTop =
             if cell.north then
-                1
+                wallWidth
 
             else
                 0
 
         borderRight =
             if cell.east then
-                1
+                wallWidth
 
             else
                 0
@@ -486,6 +492,10 @@ drawCell size cell =
     el
         [ width (px size)
         , height (px size)
+        , padding 0
+        , spacing 0
+        , Font.size (size - 4)
+        , Border.color black
         , Border.widthEach
             { top = borderTop
             , right = borderRight
@@ -516,7 +526,7 @@ slider { label, onChange, model, field, range } =
         , Element.behindContent
             (Element.el
                 [ Element.width Element.fill
-                , Element.height (Element.px 2)
+                , Element.height (Element.px 3)
                 , Element.centerY
                 , Background.color grey
                 , Border.rounded 2
@@ -536,4 +546,9 @@ slider { label, onChange, model, field, range } =
 
 grey : Element.Color
 grey =
-    rgb255 100 100 100
+    rgb255 110 110 110
+
+
+black : Element.Color
+black =
+    rgb255 0 0 0
