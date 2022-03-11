@@ -4,12 +4,16 @@ import Browser
 import Element
     exposing
         ( Element
+        , alignRight
         , alignTop
         , centerY
         , column
         , el
+        , fill
         , height
+        , image
         , layout
+        , link
         , padding
         , paddingXY
         , px
@@ -480,9 +484,9 @@ subscriptions model =
 
 view : Model -> Html Msg
 view model =
-    layout [] <|
-        column [ padding 20 ]
-            [ row [ paddingXY 0 5 ]
+    layout [ width fill ] <|
+        column [ padding 20, width fill ]
+            [ row [ paddingXY 0 5, width fill ]
                 [ Input.radioRow [ paddingXY 10 0, spacing 20 ]
                     { onChange = ChangedAlgorithm
                     , selected = Just model.algorithm
@@ -492,6 +496,16 @@ view model =
                         , Input.option Sidewinder (text "Sidewinder")
                         ]
                     }
+                , el [ alignRight ]
+                    (link []
+                        { url = "https://github.com/blaix/mazes"
+                        , label =
+                            image []
+                                { src = "GitHub-Mark-32px.png"
+                                , description = "Github logo - link to project"
+                                }
+                        }
+                    )
                 ]
             , row [ paddingXY 0 20 ]
                 [ column [ padding 20, width (px 200), alignTop ]
