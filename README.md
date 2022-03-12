@@ -9,3 +9,7 @@ npm run dev # live reloading dev server at http://localhost:8000/
 npm run debug # dev server with debuger (slow)
 npm run build # prod build to public/
 ```
+
+Pushed to `main` are auto-deployed to
+[netlify](https://app.netlify.com/sites/blaix-mazes/overview)
+and available at <https://blaix-mazes.netlify.app/>
