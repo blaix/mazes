@@ -64,7 +64,7 @@ type alias Config =
 defaults : Config
 defaults =
     { size = 40
-    , cellSize = 20
+    , cellSize = 25
     , algorithm = Sidewinder
     , carveDelay = 0
     }
@@ -626,15 +626,19 @@ view model =
                             }
                         ]
                     ]
-                , column
-                    [ Border.widthEach
-                        { top = 0
-                        , right = 0
-                        , bottom = wallWidth
-                        , left = wallWidth
-                        }
+                , column []
+                    [ column
+                        [ Border.widthEach
+                            { top = 0
+                            , right = 0
+                            , bottom = wallWidth
+                            , left = wallWidth
+                            }
+                        ]
+                        (List.map (drawRow model) model.grid)
+                    , row [ paddingXY 0 6, Font.size 18 ]
+                        [ text "Use arrow keys to move" ]
                     ]
-                    (List.map (drawRow model) model.grid)
                 ]
             ]
 
