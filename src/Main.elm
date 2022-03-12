@@ -94,7 +94,7 @@ type alias Model =
     , carvingPosition : Position
     , carvingRun : List Position
     , solvingPosition : Position
-    , solvingRun : List Position
+    , solved : Bool
     , goal : Position
     , algorithm : Algorithm
     , carved : Bool
@@ -261,7 +261,7 @@ init { size, cellSize, algorithm, carveDelay } _ =
       , carvingPosition = initialPosition
       , carvingRun = []
       , solvingPosition = ( 0, sizeY - 1 )
-      , solvingRun = []
+      , solved = False
       , algorithm = algorithm
       , carved = False
       , carveDelay = carveDelay
@@ -380,8 +380,13 @@ update msg model =
 
                     else
                         ( x, y )
+
+                solved =
+                    solvingPosition == model.goal
             in
-            ( { model | solvingPosition = solvingPosition }, Cmd.none )
+            ( { model | solvingPosition = solvingPosition, solved = solved }
+            , Cmd.none
+            )
 
         Waiting ->
             ( model, Cmd.none )
@@ -636,10 +641,22 @@ view model =
                             , bottom = wallWidth
                             , left = wallWidth
                             }
+                        , Background.color <|
+                            if model.solved then
+                                green
+
+                            else
+                                white
                         ]
                         (List.map (drawRow model) model.grid)
                     , row [ paddingXY 0 6, Font.size 18 ]
-                        [ text "Frosty is hungry. Use the arrow keys to get him to the hot dog." ]
+                        [ text <|
+                            if model.solved then
+                                "Yay! Frosty ate the hot dog! Thank you!"
+
+                            else
+                                "Frosty is hungry. Use the arrow keys to get him to the hot dog."
+                        ]
                     ]
                 ]
             ]
@@ -734,6 +751,11 @@ slider { label, onChange, model, field, range } =
         }
 
 
+
+-- COLORS
+-- https://flaviocopes.com/rgb-color-codes/
+
+
 grey : Element.Color
 grey =
     rgb255 110 110 110
@@ -742,3 +764,13 @@ grey =
 black : Element.Color
 black =
     rgb255 0 0 0
+
+
+white : Element.Color
+white =
+    rgb255 255 255 255
+
+
+green : Element.Color
+green =
+    rgb255 50 205 50
