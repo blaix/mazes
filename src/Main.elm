@@ -1,6 +1,7 @@
 module Main exposing (main)
 
 import Browser
+import Browser.Events exposing (onKeyDown)
 import Element
     exposing
         ( Element
@@ -28,6 +29,9 @@ import Element.Border as Border
 import Element.Font as Font
 import Element.Input as Input
 import Html exposing (Html)
+import Json.Decode as Json
+import Keyboard.Event exposing (KeyboardEvent, decodeKeyboardEvent)
+import Keyboard.Key exposing (Key(..))
 import List exposing (range)
 import List.Extra exposing (getAt, setAt)
 import Random
@@ -161,6 +165,68 @@ type Coin
     | Tails
 
 
+type alias Walls =
+    { north : Bool
+    , east : Bool
+    , south : Bool
+    , west : Bool
+    }
+
+
+{-| Get the walls for a given cell position
+-}
+getWalls : Model -> Position -> Walls
+getWalls model position =
+    let
+        ( x, y ) =
+            position
+
+        cell : Maybe Cell
+        cell =
+            getAt y model.grid
+                |> Maybe.andThen (getAt x)
+
+        southernNeighbor : Maybe Cell
+        southernNeighbor =
+            getAt (y - 1) model.grid
+                |> Maybe.andThen (getAt x)
+
+        westernNeighbor : Maybe Cell
+        westernNeighbor =
+            getAt y model.grid
+                |> Maybe.andThen (getAt (x - 1))
+
+        ( north, east ) =
+            case cell of
+                Just c ->
+                    ( c.north, c.east )
+
+                Nothing ->
+                    ( True, True )
+
+        south =
+            case southernNeighbor of
+                Just c ->
+                    c.north
+
+                Nothing ->
+                    True
+
+        west =
+            case westernNeighbor of
+                Just c ->
+                    c.east
+
+                Nothing ->
+                    True
+    in
+    { north = north
+    , east = east
+    , south = south
+    , west = west
+    }
+
+
 initialPosition : Position
 initialPosition =
     ( 0, 0 )
@@ -215,6 +281,7 @@ type Msg
     | ChangedCellSize Int
     | ChangedAlgorithm Algorithm
     | ChangedCarveDelay Int
+    | KeyPressed KeyboardEvent
     | Waiting
 
 
@@ -287,6 +354,32 @@ update msg model =
                     config model
             in
             init { cfg | carveDelay = delay } ()
+
+        KeyPressed event ->
+            let
+                ( x, y ) =
+                    model.solvingPosition
+
+                walls =
+                    getWalls model model.solvingPosition
+
+                solvingPosition =
+                    if event.keyCode == Up && y > 0 && not walls.north then
+                        ( x, y - 1 )
+
+                    else if event.keyCode == Down && y < model.sizeY - 1 && not walls.south then
+                        ( x, y + 1 )
+
+                    else if event.keyCode == Right && x < model.sizeX - 1 && not walls.east then
+                        ( x + 1, y )
+
+                    else if event.keyCode == Left && x > 0 && not walls.west then
+                        ( x - 1, y )
+
+                    else
+                        ( x, y )
+            in
+            ( { model | solvingPosition = solvingPosition }, Cmd.none )
 
         Waiting ->
             ( model, Cmd.none )
@@ -457,13 +550,21 @@ removeWall model direction position =
 
 subscriptions : Model -> Sub Msg
 subscriptions model =
+    let
+        keySub =
+            onKeyDown (Json.map KeyPressed decodeKeyboardEvent)
+    in
     if model.carved || model.carveDelay == 0 then
-        Sub.none
+        -- No timer sub because we're done carving
+        keySub
 
     else
-        Time.every
-            (toFloat model.carveDelay)
-            (always (TookStep (chooseNextStep model)))
+        Sub.batch
+            [ Time.every
+                (toFloat model.carveDelay)
+                (always (TookStep (chooseNextStep model)))
+            , keySub
+            ]
 
 
 
