@@ -82,21 +82,23 @@ config model =
 -- MODEL
 
 
-{-| A 2-dimensional grid of cells
--}
 type alias Model =
     { grid : Grid
     , sizeX : Int
     , sizeY : Int
     , cellSize : Int
-    , currentPosition : Position
-    , currentRun : List Position
+    , carvingPosition : Position
+    , carvingRun : List Position
+    , solvingPosition : Position
+    , solvingRun : List Position
     , algorithm : Algorithm
     , carved : Bool
     , carveDelay : Int
     }
 
 
+{-| A 2-dimensional grid of cells
+-}
 type alias Grid =
     List (List Cell)
 
@@ -145,7 +147,7 @@ The data structure consists of two bools showing if the north and east walls exi
 type alias Cell =
     { north : Bool
     , east : Bool
-    , contents : String
+    , position : Position
     }
 
 
@@ -180,24 +182,8 @@ init { size, cellSize, algorithm, carveDelay } _ =
         sizeY =
             round (toFloat size * (4 / 6))
 
-        start =
-            ( 0, sizeY - 1 )
-
-        finish =
-            ( sizeX - 1, 0 )
-
-        walledCell =
-            Cell True True
-
         initCell position =
-            if position == start then
-                walledCell "★"
-
-            else if position == finish then
-                walledCell "✓"
-
-            else
-                walledCell " "
+            Cell True True position
     in
     ( { grid =
             List.Extra.initialize sizeY
@@ -205,8 +191,10 @@ init { size, cellSize, algorithm, carveDelay } _ =
       , sizeX = sizeX
       , sizeY = sizeY
       , cellSize = cellSize
-      , currentPosition = initialPosition
-      , currentRun = []
+      , carvingPosition = initialPosition
+      , carvingRun = []
+      , solvingPosition = ( 0, sizeY - 1 )
+      , solvingRun = []
       , algorithm = algorithm
       , carved = False
       , carveDelay = carveDelay
@@ -241,8 +229,8 @@ update msg model =
     case msg of
         TookStep (Just position) ->
             ( { model
-                | currentPosition = position
-                , currentRun = position :: model.currentRun
+                | carvingPosition = position
+                , carvingRun = position :: model.carvingRun
               }
             , Random.generate FlippedCoin flipCoin
             )
@@ -319,7 +307,7 @@ chooseNextStep : Model -> Maybe Position
 chooseNextStep model =
     let
         ( x, y ) =
-            model.currentPosition
+            model.carvingPosition
     in
     if (x >= model.sizeX - 1) && (y >= model.sizeY - 1) then
         -- Visited every cell. All done!
@@ -351,7 +339,7 @@ chooseWithBinaryTree : Model -> Coin -> Wall
 chooseWithBinaryTree model coin =
     let
         ( x, y ) =
-            model.currentPosition
+            model.carvingPosition
     in
     case coin of
         Heads ->
@@ -361,11 +349,11 @@ chooseWithBinaryTree model coin =
 
             else if y == 0 then
                 -- Special case: Don't remove the northern maze border
-                Wall East model.currentPosition
+                Wall East model.carvingPosition
 
             else
                 -- Normal case: Remove northern wall on a Heads
-                Wall North model.currentPosition
+                Wall North model.carvingPosition
 
         Tails ->
             if y == 0 && x >= model.sizeX - 1 then
@@ -374,11 +362,11 @@ chooseWithBinaryTree model coin =
 
             else if x >= model.sizeX - 1 then
                 -- Special case: Don't remove eastern maze border
-                Wall North model.currentPosition
+                Wall North model.carvingPosition
 
             else
                 -- Normal case: Remove eastern wall on a Tails
-                Wall East model.currentPosition
+                Wall East model.carvingPosition
 
 
 {-| Choose a wall to remove using the Sidewinder maze algorithm
@@ -388,7 +376,7 @@ chooseWithSidewinder : Model -> Coin -> Wall
 chooseWithSidewinder model coin =
     let
         ( x, y ) =
-            model.currentPosition
+            model.carvingPosition
     in
     case coin of
         Heads ->
@@ -398,13 +386,13 @@ chooseWithSidewinder model coin =
 
             else if y == 0 then
                 -- Special case: Don't remove the northern maze border
-                Wall East model.currentPosition
+                Wall East model.carvingPosition
 
             else
                 -- Normal case: Remove northern wall from a randomly selected cell in the current run
                 Random North
                     -- Exclude cells along the northern maze boundary
-                    (List.filter (\( _, cy ) -> cy > 0) model.currentRun)
+                    (List.filter (\( _, cy ) -> cy > 0) model.carvingRun)
 
         Tails ->
             -- Sidewinder == BinaryTree for tails flips
@@ -448,14 +436,14 @@ removeWall model direction position =
                             ( { cell | north = False }, [] )
 
                         East ->
-                            ( { cell | east = False }, model.currentRun )
+                            ( { cell | east = False }, model.carvingRun )
 
                 newRow =
                     row |> setAt x newCell
             in
             { model
                 | grid = setAt y newRow model.grid
-                , currentRun = newRun
+                , carvingRun = newRun
             }
 
         -- If we got a point that's out of bounds there's nothing we can do
@@ -545,18 +533,18 @@ view model =
                         , left = wallWidth
                         }
                     ]
-                    (List.map (drawRow model.cellSize) model.grid)
+                    (List.map (drawRow model) model.grid)
                 ]
             ]
 
 
-drawRow : Int -> List Cell -> Element Msg
-drawRow cellSize cells =
-    row [] (List.map (drawCell cellSize) cells)
+drawRow : Model -> List Cell -> Element Msg
+drawRow model cells =
+    row [] (List.map (drawCell model) cells)
 
 
-drawCell : Int -> Cell -> Element Msg
-drawCell size cell =
+drawCell : Model -> Cell -> Element Msg
+drawCell model cell =
     let
         borderTop =
             if cell.north then
@@ -571,13 +559,22 @@ drawCell size cell =
 
             else
                 0
+
+        contents =
+            if cell.position == model.solvingPosition then
+                "⛄"
+
+            else
+                " "
     in
+    -- TODO: switch to tailwind? should be setting border width for EVERY cell and just changing the top/right color.
+    -- Doesn't seem possible with elm-ui?
     el
-        [ width (px size)
-        , height (px size)
+        [ width (px model.cellSize)
+        , height (px model.cellSize)
         , padding 0
         , spacing 0
-        , Font.size (size - 4)
+        , Font.size model.cellSize
         , Border.color black
         , Border.widthEach
             { top = borderTop
@@ -586,7 +583,7 @@ drawCell size cell =
             , left = 0
             }
         ]
-        (text cell.contents)
+        (text contents)
 
 
 slider :
