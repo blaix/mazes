@@ -95,6 +95,7 @@ type alias Model =
     , carvingRun : List Position
     , solvingPosition : Position
     , solvingRun : List Position
+    , goal : Position
     , algorithm : Algorithm
     , carved : Bool
     , carveDelay : Int
@@ -264,6 +265,7 @@ init { size, cellSize, algorithm, carveDelay } _ =
       , algorithm = algorithm
       , carved = False
       , carveDelay = carveDelay
+      , goal = ( sizeX - 1, 0 )
       }
     , Task.perform TookStep (Task.succeed (Just initialPosition))
     )
@@ -637,7 +639,7 @@ view model =
                         ]
                         (List.map (drawRow model) model.grid)
                     , row [ paddingXY 0 6, Font.size 18 ]
-                        [ text "Use arrow keys to move" ]
+                        [ text "Frosty is hungry. Use the arrow keys to get him to the hot dog." ]
                     ]
                 ]
             ]
@@ -668,6 +670,9 @@ drawCell model cell =
         contents =
             if cell.position == model.solvingPosition then
                 "⛄"
+
+            else if cell.position == model.goal then
+                "🌭"
 
             else
                 " "
