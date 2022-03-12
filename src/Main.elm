@@ -606,6 +606,9 @@ view model =
             , row [ paddingXY 0 20 ]
                 [ column [ padding 20, width (px 200), alignTop ]
                     [ row []
+                        -- TODO: These sliders would be better as native number inputs with up/down arrows
+                        -- <https://developer.mozilla.org/en-US/docs/Web/HTML/Element/input/number>
+                        -- not possible with elm-ui...?
                         [ slider
                             { label = "Maze Size: " ++ String.fromInt model.sizeX
                             , onChange = ChangedMazeSize
