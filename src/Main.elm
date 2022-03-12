@@ -189,7 +189,7 @@ getWalls model position =
 
         southernNeighbor : Maybe Cell
         southernNeighbor =
-            getAt (y - 1) model.grid
+            getAt (y + 1) model.grid
                 |> Maybe.andThen (getAt x)
 
         westernNeighbor : Maybe Cell
