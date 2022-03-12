@@ -64,7 +64,7 @@ type alias Config =
 defaults : Config
 defaults =
     { size = 40
-    , cellSize = 25
+    , cellSize = 22
     , algorithm = Sidewinder
     , carveDelay = 0
     }
@@ -235,7 +235,7 @@ initialPosition =
 
 wallWidth : Int
 wallWidth =
-    2
+    1
 
 
 {-| Create the maze and start carving in the top left cell.
