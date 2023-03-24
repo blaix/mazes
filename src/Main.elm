@@ -57,7 +57,7 @@ type alias Config =
     { size : Int
     , cellSize : Int
     , algorithm : Algorithm
-    , carveDelay : Int
+    , carvingDelay : Int
     }
 
 
@@ -66,7 +66,7 @@ defaults =
     { size = 40
     , cellSize = 22
     , algorithm = Sidewinder
-    , carveDelay = 0
+    , carvingDelay = 0
     }
 
 
@@ -78,7 +78,7 @@ config model =
     { size = model.sizeX
     , cellSize = model.cellSize
     , algorithm = model.algorithm
-    , carveDelay = model.carveDelay
+    , carvingDelay = model.carvingDelay
     }
 
 
@@ -98,7 +98,7 @@ type alias Model =
     , goal : Position
     , algorithm : Algorithm
     , carved : Bool
-    , carveDelay : Int
+    , carvingDelay : Int
     }
 
 
@@ -241,7 +241,7 @@ wallWidth =
 {-| Create the maze and start carving in the top left cell.
 -}
 init : Config -> flags -> ( Model, Cmd Msg )
-init { size, cellSize, algorithm, carveDelay } _ =
+init { size, cellSize, algorithm, carvingDelay } _ =
     let
         sizeX =
             size
@@ -264,10 +264,10 @@ init { size, cellSize, algorithm, carveDelay } _ =
       , solved = False
       , algorithm = algorithm
       , carved = False
-      , carveDelay = carveDelay
+      , carvingDelay = carvingDelay
       , goal = ( sizeX - 1, 0 )
       }
-    , Task.perform TookStep (Task.succeed (Just initialPosition))
+    , Task.perform TookCarvingStep (Task.succeed (Just initialPosition))
     )
 
 
@@ -276,8 +276,8 @@ init { size, cellSize, algorithm, carveDelay } _ =
 
 
 type Msg
-    = TookStep (Maybe Position)
-    | RemovedWall Wall
+    = TookCarvingStep (Maybe Position)
+    | RemoveWall Wall
     | FlippedCoin Coin
     | ChangedMazeSize Int
     | ChangedCellSize Int
@@ -296,7 +296,7 @@ type Wall
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
-        TookStep (Just position) ->
+        TookCarvingStep (Just position) ->
             ( { model
                 | carvingPosition = position
                 , carvingRun = position :: model.carvingRun
@@ -304,30 +304,31 @@ update msg model =
             , Random.generate FlippedCoin flipCoin
             )
 
-        TookStep Nothing ->
+        TookCarvingStep Nothing ->
             -- All done!
             ( { model | carved = True }, Cmd.none )
 
         FlippedCoin coin ->
-            update
-                (RemovedWall (chooseWallToRemove model coin))
-                model
-
-        RemovedWall (Wall direction position) ->
-            update
-                (takeStepOrWait model)
-                (removeWall model direction position)
-
-        RemovedWall (Random direction positions) ->
             ( model
-            , Random.generate RemovedWall (randomWall direction positions)
+            , Task.perform RemoveWall <|
+                Task.succeed (chooseWallToRemove model coin)
             )
 
-        RemovedWall NoWall ->
+        RemoveWall (Wall direction position) ->
+            ( removeWall model direction position
+            , Task.perform takeStepOrWait (Task.succeed model)
+            )
+
+        RemoveWall (Random direction positions) ->
+            ( model
+            , Random.generate RemoveWall (randomWall direction positions)
+            )
+
+        RemoveWall NoWall ->
             -- Sometimes we don't want to remove a wall!
-            update
-                (takeStepOrWait model)
-                model
+            ( model
+            , Task.perform takeStepOrWait (Task.succeed model)
+            )
 
         ChangedMazeSize newSize ->
             let
@@ -355,7 +356,7 @@ update msg model =
                 cfg =
                     config model
             in
-            init { cfg | carveDelay = delay } ()
+            init { cfg | carvingDelay = delay } ()
 
         KeyPressed event ->
             let
@@ -394,8 +395,8 @@ update msg model =
 
 takeStepOrWait : Model -> Msg
 takeStepOrWait model =
-    if model.carveDelay == 0 then
-        TookStep (chooseNextStep model)
+    if model.carvingDelay == 0 then
+        TookCarvingStep (chooseNextStep model)
 
     else
         -- If we're not instantly carving,
@@ -561,15 +562,15 @@ subscriptions model =
         keySub =
             onKeyDown (Json.map KeyPressed decodeKeyboardEvent)
     in
-    if model.carved || model.carveDelay == 0 then
+    if model.carved || model.carvingDelay == 0 then
         -- No timer sub because we're done carving
         keySub
 
     else
         Sub.batch
             [ Time.every
-                (toFloat model.carveDelay)
-                (always (TookStep (chooseNextStep model)))
+                (toFloat model.carvingDelay)
+                (always (TookCarvingStep (chooseNextStep model)))
             , keySub
             ]
 
@@ -628,10 +629,10 @@ view model =
                         ]
                     , row []
                         [ slider
-                            { label = "Delay (ms): " ++ String.fromInt model.carveDelay
+                            { label = "Delay (ms): " ++ String.fromInt model.carvingDelay
                             , onChange = ChangedCarveDelay
                             , model = model
-                            , field = .carveDelay
+                            , field = .carvingDelay
                             , range = ( 0, 200 )
                             }
                         ]
