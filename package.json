@@ -1,12 +1,14 @@
 {
   "private": true,
   "scripts": {
+    "postinstall": "npx elm-tooling install",
     "dev": "elm-live -d public src/Main.elm -- --output=public/index.html",
     "debug": "npm run dev -- --debug",
     "build": "elm make src/Main.elm --output=public/index.html --optimize"
   },
   "dependencies": {
     "elm": "^0.19.1-5",
-    "elm-live": "^4.0.2"
+    "elm-live": "^4.0.2",
+    "elm-tooling": "^1.13.1"
   }
 }
