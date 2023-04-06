@@ -66,7 +66,7 @@ defaults =
     { size = 40
     , cellSize = 22
     , algorithm = Sidewinder
-    , carvingDelay = 0
+    , carvingDelay = 1
     }
 
 
