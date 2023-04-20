@@ -606,36 +606,32 @@ view model =
                 ]
             , row [ paddingXY 0 20 ]
                 [ column [ padding 20, width (px 200), alignTop ]
-                    [ row []
-                        -- TODO: These sliders would be better as native number inputs with up/down arrows
-                        -- <https://developer.mozilla.org/en-US/docs/Web/HTML/Element/input/number>
-                        -- not possible with elm-ui...?
-                        [ slider
-                            { label = "Maze Size: " ++ String.fromInt model.sizeX
-                            , onChange = ChangedMazeSize
-                            , model = model
-                            , field = .sizeX
-                            , range = ( 3, 80 )
-                            }
-                        ]
-                    , row []
-                        [ slider
-                            { label = "Path Size: " ++ String.fromInt model.cellSize
-                            , onChange = ChangedCellSize
-                            , model = model
-                            , field = .cellSize
-                            , range = ( 4, 100 )
-                            }
-                        ]
-                    , row []
-                        [ slider
-                            { label = "Delay (ms): " ++ String.fromInt model.carvingDelay
-                            , onChange = ChangedCarveDelay
-                            , model = model
-                            , field = .carvingDelay
-                            , range = ( 0, 200 )
-                            }
-                        ]
+                    [ el [ paddingXY 0 20 ] (text "Redraw maze:")
+
+                    -- TODO: These sliders would be better as native number inputs with up/down arrows
+                    -- <https://developer.mozilla.org/en-US/docs/Web/HTML/Element/input/number>
+                    -- not possible with elm-ui...?
+                    , slider
+                        { label = "Maze Size: " ++ String.fromInt model.sizeX
+                        , onChange = ChangedMazeSize
+                        , model = model
+                        , field = .sizeX
+                        , range = ( 3, 80 )
+                        }
+                    , slider
+                        { label = "Path Size: " ++ String.fromInt model.cellSize
+                        , onChange = ChangedCellSize
+                        , model = model
+                        , field = .cellSize
+                        , range = ( 4, 100 )
+                        }
+                    , slider
+                        { label = "Delay (ms): " ++ String.fromInt model.carvingDelay
+                        , onChange = ChangedCarveDelay
+                        , model = model
+                        , field = .carvingDelay
+                        , range = ( 0, 200 )
+                        }
                     ]
                 , column []
                     [ column
