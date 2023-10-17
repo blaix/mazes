@@ -8,7 +8,7 @@ It's hosted at <https://blaix-mazes.netlify.app/>.
 ## Progress
 
 I'm still in the early part of the book.
-The mazes are very "move up to the right".
+The mazes are very "move up and to the right".
 But it's a lot of fun and I'm looking forward to implementing some of the more sophisticated algorithms.
 
 ### TODO
